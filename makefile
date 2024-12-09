@@ -1,6 +1,10 @@
 TARGET = slam
 
-SOURCES = main.cpp array.cpp
+SRC_DIR = src
+BUILD_DIR = build
+
+SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
+OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++17
@@ -9,17 +13,16 @@ LIBS = -lraylib -lm
 INCLUDE_DIRS =
 LIB_DIRS =
 
-OBJECTS = $(SOURCES:.cpp=.o)
-
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) $(LIB_DIRS) -o $@ $^ $(LIBS)
 
-%.o: %.cpp
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
+	rm -rf $(BUILD_DIR) $(TARGET)
 
 .PHONY: all clean
