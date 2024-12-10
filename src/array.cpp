@@ -2,12 +2,12 @@
 #include<stdlib.h>
 #include<string.h>
 
-struct Array{
+typedef struct Array{
     size_t capacity;
     size_t size;
     size_t element_size;
     void* data;
-};
+}Array;
 
 void initArray(Array* arr, size_t initial_capacity, size_t element_size){
     arr->data = malloc(initial_capacity * element_size);
