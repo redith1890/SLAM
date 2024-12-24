@@ -19,4 +19,5 @@ void removeElement(Array* arr, int index);
 void freeArray(Array* arr);
 void printArrayInt(Array* arr);
 void printElementInt(Array* arr, int index);
-#endif 
+void checkArrayStatus(Array* arr, const char* message);
+#endif

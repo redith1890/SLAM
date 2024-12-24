@@ -7,11 +7,17 @@ SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17
+CXXFLAGS = -Wall -Wextra -std=c++17 -g
 
 LIBS = -lraylib -lm
 INCLUDE_DIRS =
 LIB_DIRS =
+
+ifeq ($(DEBUG), 0)
+    CXXFLAGS += -O3  # Optimización para producción (modo sin depuración)
+else
+    CXXFLAGS += -g  # Símbolos de depuración
+endif
 
 all: $(TARGET)
 
