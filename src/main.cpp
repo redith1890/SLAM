@@ -160,35 +160,40 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
 
     }
     char dstring[30];
-    LaserPoint point;
-    point.x = laser_end_x;
-    point.y = laser_end_y - dy;
 
     switch(direction)
     {
         case UP:
-            // checkArrayStatus(pointarr, "Before creating point");
-            addElement(pointarr, &point);
-            // checkArrayStatus(pointarr, "After creating point");
-            sprintf(dstring, "UP: %f", dy);
-            DrawText(dstring, 70, 40, 20, RED);
-            printf("UP \n");
+            {
+                LaserPoint point;
+                point.x = laser_end_x;
+                point.y = laser_end_y - wall->size.y - dy;
+                addElement(pointarr, &point);
+            }
             return true;
         case DOWN:
-            sprintf(dstring, "DOWN: %f", dy);
-            DrawText(dstring, 260, 40, 20, RED);
-            printf("DOWN \n");
+            {
+                LaserPoint point;
+                point.x = laser_end_x;
+                point.y = laser_end_y - dy;
+                addElement(pointarr, &point);
+            }
             return true;
         case RIGHT:
-            sprintf(dstring, "RIGHT: %f", dx);
-            DrawText(dstring, 540, 40, 20, RED);
-            printf("RIGHT \n");
+            {
+                LaserPoint point;
+                point.x = laser_end_x - dx;
+                point.y = laser_end_y;
+                addElement(pointarr, &point);
+            }
             return true;
         case LEFT:
-            sprintf(dstring, "LEFT: %f", dx);
-            DrawText(dstring, 760, 40, 20, RED);
-
-            printf("LEFT \n");
+            {
+                LaserPoint point;
+                point.x = laser_end_x - wall->size.x - dx;
+                point.y = laser_end_y;
+                addElement(pointarr, &point);
+            }
             return true;
         default:
             return false;
@@ -215,7 +220,7 @@ main(){
     static Array laserarr;
     initArray(&laserarr, 10, sizeof(Laser));
 
-    Array pointarr;
+    static Array pointarr;
     initArray(&pointarr, 10, sizeof(LaserPoint));
 
     while (!WindowShouldClose()){
@@ -230,13 +235,14 @@ main(){
             if (IsKeyDown(KEY_LEFT)) robot.velocity.x = -10;
             if (IsKeyDown(KEY_UP)) robot.velocity.y = -10;
             if (IsKeyDown(KEY_DOWN)) robot.velocity.y = 10;
-            if (IsKeyPressed(KEY_SPACE)) {
+            if (IsKeyDown(KEY_SPACE)) {
                 Vector2 velocities[4];
                 radiansToVelocities(velocities, 4);
                 for (size_t i = 0; i < 4; i++)
                 {
                     Laser laser = laserCreate(&robot, velocities[i]);
                     addElement(&laserarr, &laser);
+
                 }
 
             }
@@ -246,29 +252,26 @@ main(){
                 if(paused) paused = false;
                 else paused = true;
             }
-            Vector2 velocities[4];
-            radiansToVelocities(velocities, 4);
-            for (size_t i = 0; i < 4; i++)
-            {
-                Laser laser = laserCreate(&robot, velocities[i]);
-                addElement(&laserarr, &laser);
-            }
+
 
             // Game Loop
-            Laser *lasers = (Laser *)laserarr.data;
+            Laser* lasers = (Laser *)laserarr.data;
+            LaserPoint* points = (LaserPoint *)pointarr.data;
 
             if(!paused) robotUpdate(&robot);
 
-            for(int i = 0; i < 4; i++)
+            for (size_t i = 0; i < 4; i++)
             {
                 robotCollide(&robot, &walls[i]);
-
                 for (size_t j = 0; j < laserarr.size; j++)
                 {
                     if(i == 0) laserUpdate(&lasers[j]); // Avoid making a new for without iterating into walls
                     if(laserCollide(&lasers[j], &walls[i], &pointarr)) removeElement(&laserarr, j);
+
                 }
             }
+
+
 
             // Rendering
 
@@ -278,6 +281,7 @@ main(){
 
             for(int i = 0; i < 4; i++)
             {
+
                 DrawRectangle(walls[i].position.x, walls[i].position.y, walls[i].size.x, walls[i].size.y, DARKGRAY);
             }
             for(int i = 0; i < (int)laserarr.size; i++)
@@ -285,7 +289,10 @@ main(){
                 Vector2 endPosition = { lasers[i].position.x + lasers[i].velocity.x, lasers[i].position.y + lasers[i].velocity.y };
                 DrawLineEx(lasers[i].position, endPosition, 2.0f, RED);
             }
-
+            for(int i = 0; i < pointarr.size; i++)
+            {
+                 DrawCircle(points[i].x, points[i].y, 2, RED);
+            }
             DrawRectangle(robot.position.x, robot.position.y, robot.size.x, robot.size.y, BLUE);
 
 
