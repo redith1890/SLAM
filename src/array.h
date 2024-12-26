@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct Array {
+typedef struct {
     size_t capacity;
     size_t size;
     size_t element_size;

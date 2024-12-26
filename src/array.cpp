@@ -26,7 +26,7 @@ void initArray(Array* arr, size_t initial_capacity, size_t element_size){
 }
 
 void resizeArray(Array* arr, size_t new_size){
-    trackArrayOperation(arr,"Before resize");
+    // trackArrayOperation(arr,"Before resize");
     void* new_data = realloc(arr->data, new_size * arr->element_size);
     if(new_data == NULL){
         printf("Error at resize the memory\n");

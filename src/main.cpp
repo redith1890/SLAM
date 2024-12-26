@@ -6,20 +6,29 @@
 
 #include"array.h"
 
-typedef struct Wall
+
+#define N_LASER_PER_FRAME 10
+#define POINT_THRESHOLD_DISTANCE 20.0
+
+// ====================================================================================================================================
+// TYPES
+// ====================================================================================================================================
+
+
+typedef struct
 {
     Vector2 position;
     Vector2 size;
 }Wall;
 
-typedef struct Robot
+typedef struct
 {
     Vector2 position;
     Vector2 size;
     Vector2 velocity;
 }Robot;
 
-typedef struct Laser
+typedef struct
 {
     Vector2 position;
     Vector2 velocity;
@@ -27,7 +36,7 @@ typedef struct Laser
 
 typedef Vector2 LaserPoint;
 
-typedef enum Direction: int8_t
+typedef enum : int8_t
 {
     UP,
     DOWN,
@@ -35,6 +44,28 @@ typedef enum Direction: int8_t
     LEFT,
     NONE = -1
 }Direction;
+
+
+// ===================================================================================================================================
+// PROTOTYPES
+// ===================================================================================================================================
+
+
+Wall wallCreate(Vector2 position, Vector2 size);
+Robot robotCreate(Vector2 position, Vector2 size, Vector2 velocity);
+void robotUpdate(Robot *robot);
+void robotCollide(Robot *robot, const Wall *wall);
+void laserUpdate(Laser *laser);
+Laser laserCreate(const Robot *robot, Vector2 velocity);
+void radiansToVelocities(Vector2 velocities[], unsigned int divisions);
+bool pointExists(const Array* pointarr, const LaserPoint* laserpoint);
+bool laserCollide(Laser* laser, const Wall* wall, Array* pointarr);
+
+
+// ===================================================================================================================================
+// IMPL
+// ===================================================================================================================================
+
 
 Wall
 wallCreate(Vector2 position, Vector2 size){
@@ -64,7 +95,7 @@ robotUpdate(Robot *robot){
 }
 
 void
-robotCollide(Robot *robot, Wall *wall) {
+robotCollide(Robot *robot, const Wall *wall) {
     bool collisionX = robot->position.x + robot->size.x > wall->position.x &&
                       wall->position.x + wall->size.x > robot->position.x;
 
@@ -106,7 +137,7 @@ laserUpdate(Laser *laser){
 }
 
 Laser
-laserCreate(Robot *robot, Vector2 velocity){
+laserCreate(const Robot *robot, Vector2 velocity){
     Laser laser;
     Vector2 robot_center = {robot->position.x + robot->size.x/2, robot->position.y + robot->size.y/2};
     laser.position = robot_center;
@@ -127,8 +158,32 @@ radiansToVelocities(Vector2 velocities[], unsigned int divisions)
         velocities[i].y = sin(theta) * r;
     }
 }
+
 bool
-laserCollide(Laser* laser, Wall* wall, Array* pointarr)
+pointExistsOrNear(const Array* pointarr, const LaserPoint* laserpoint)
+{
+    LaserPoint* points = (LaserPoint *)pointarr->data;
+
+    for(size_t i = 0; i < pointarr->size; i++)
+    {
+        if (fabs(points[i].x - laserpoint->x) < 1e-6 &&
+            fabs(points[i].y - laserpoint->y) < 1e-6)
+        {
+            return true;
+        }
+
+        double dx = points[i].x - laserpoint->x;
+        double dy = points[i].y - laserpoint->y;
+        if (sqrt(dx * dx + dy * dy) < POINT_THRESHOLD_DISTANCE)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+laserCollide(Laser* laser, const Wall* wall, Array* pointarr)
 {
     Direction direction = NONE;
     float laser_end_x = laser->position.x + laser->velocity.x;
@@ -159,7 +214,6 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
 
 
     }
-    char dstring[30];
 
     switch(direction)
     {
@@ -168,7 +222,7 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
                 LaserPoint point;
                 point.x = laser_end_x;
                 point.y = laser_end_y - wall->size.y - dy;
-                addElement(pointarr, &point);
+                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
             }
             return true;
         case DOWN:
@@ -176,7 +230,7 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
                 LaserPoint point;
                 point.x = laser_end_x;
                 point.y = laser_end_y - dy;
-                addElement(pointarr, &point);
+                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
             }
             return true;
         case RIGHT:
@@ -184,7 +238,7 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
                 LaserPoint point;
                 point.x = laser_end_x - dx;
                 point.y = laser_end_y;
-                addElement(pointarr, &point);
+                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
             }
             return true;
         case LEFT:
@@ -192,7 +246,7 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
                 LaserPoint point;
                 point.x = laser_end_x - wall->size.x - dx;
                 point.y = laser_end_y;
-                addElement(pointarr, &point);
+                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
             }
             return true;
         default:
@@ -202,13 +256,28 @@ laserCollide(Laser* laser, Wall* wall, Array* pointarr)
 
 }
 
+void
+laserOutOfScreen(Array* laserarr)
+{
+    Laser* lasers = (Laser*)laserarr->data;
+    for(size_t i = 0; i < laserarr->size; i++)
+    {
+        if(lasers[i].position.x < 0 || lasers[i].position.x > 1920 || lasers[i].position.y < 0 || lasers[i].position.y > 1080) removeElement(laserarr, i);
+    }
+}
+
+
+// ===================================================================================================================================
+// MAIN
+// ===================================================================================================================================
+
+
 
 int
 main(){
     const int screenWidth = 1920;
     const int screenHeight = 1080; // 1080 - i3 borders
-    InitWindow(screenWidth, screenHeight, "Slam simulation");
-    SetTargetFPS(60);
+
     bool paused = false;
 
     Wall walls[4];
@@ -216,12 +285,15 @@ main(){
     walls[1] = wallCreate((Vector2){1650, 100}, (Vector2){100, 800});
     walls[2] = wallCreate((Vector2){100, 100}, (Vector2){1650, 100});
     walls[3] = wallCreate((Vector2){100, 100}, (Vector2){100, 600});
-    Robot robot = robotCreate(Vector2{x: 100, y: 700}, Vector2{x: 100, y: 100}, Vector2{x: 10, y: 0});
+    Robot robot = robotCreate((Vector2){100, 700}, (Vector2){100, 100}, (Vector2){10, 0});
     static Array laserarr;
     initArray(&laserarr, 10, sizeof(Laser));
 
     static Array pointarr;
     initArray(&pointarr, 10, sizeof(LaserPoint));
+
+    InitWindow(screenWidth, screenHeight, "Slam simulation");
+    SetTargetFPS(60);
 
     while (!WindowShouldClose()){
         BeginDrawing();
@@ -236,9 +308,9 @@ main(){
             if (IsKeyDown(KEY_UP)) robot.velocity.y = -10;
             if (IsKeyDown(KEY_DOWN)) robot.velocity.y = 10;
             if (IsKeyDown(KEY_SPACE)) {
-                Vector2 velocities[4];
-                radiansToVelocities(velocities, 4);
-                for (size_t i = 0; i < 4; i++)
+                Vector2 velocities[N_LASER_PER_FRAME];
+                radiansToVelocities(velocities, N_LASER_PER_FRAME);
+                for (size_t i = 0; i < N_LASER_PER_FRAME; i++)
                 {
                     Laser laser = laserCreate(&robot, velocities[i]);
                     addElement(&laserarr, &laser);
@@ -255,43 +327,55 @@ main(){
 
 
             // Game Loop
+
             Laser* lasers = (Laser *)laserarr.data;
             LaserPoint* points = (LaserPoint *)pointarr.data;
 
-            if(!paused) robotUpdate(&robot);
-
-            for (size_t i = 0; i < 4; i++)
+            if(!paused)
             {
-                robotCollide(&robot, &walls[i]);
-                for (size_t j = 0; j < laserarr.size; j++)
-                {
-                    if(i == 0) laserUpdate(&lasers[j]); // Avoid making a new for without iterating into walls
-                    if(laserCollide(&lasers[j], &walls[i], &pointarr)) removeElement(&laserarr, j);
+                robotUpdate(&robot);
 
+                for(size_t i = 0; i < laserarr.size; i++)
+                {
+                    laserUpdate(&lasers[i]);
+                    laserOutOfScreen(&laserarr);
+                }
+
+                for (size_t i = 0; i < 4; i++)
+                {
+                    robotCollide(&robot, &walls[i]);
+                    for (size_t j = 0; j < laserarr.size; j++)
+                    {
+                        if(laserCollide(&lasers[j], &walls[i], &pointarr)) removeElement(&laserarr, j);
+                    }
                 }
             }
 
 
 
+
             // Rendering
 
-            char fpstring[3];
-            sprintf(fpstring,"%d", fps);
+            char fpstring[40];
+            sprintf(fpstring,"FPS %d", fps);
             DrawText(fpstring, 10, 10, 20, RED);
+
+            char n_points[40];
+            sprintf(n_points,"Number of points: %d", pointarr.size);
+            DrawText(n_points, 10, 40, 20, RED);
 
             for(int i = 0; i < 4; i++)
             {
-
                 DrawRectangle(walls[i].position.x, walls[i].position.y, walls[i].size.x, walls[i].size.y, DARKGRAY);
             }
-            for(int i = 0; i < (int)laserarr.size; i++)
+            for(size_t i = 0; i < laserarr.size; i++)
             {
                 Vector2 endPosition = { lasers[i].position.x + lasers[i].velocity.x, lasers[i].position.y + lasers[i].velocity.y };
                 DrawLineEx(lasers[i].position, endPosition, 2.0f, RED);
             }
-            for(int i = 0; i < pointarr.size; i++)
+            for(size_t i = 0; i < pointarr.size; i++)
             {
-                 DrawCircle(points[i].x, points[i].y, 2, RED);
+                DrawCircle(points[i].x, points[i].y, 2, RED);
             }
             DrawRectangle(robot.position.x, robot.position.y, robot.size.x, robot.size.y, BLUE);
 

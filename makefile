@@ -7,19 +7,29 @@ SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJECTS = $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_DIR)/%.o,$(SOURCES))
 
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17 -g
-
 LIBS = -lraylib -lm
 INCLUDE_DIRS =
 LIB_DIRS =
 
+# Si no se define DEBUG, por defecto se activa el modo debug.
+DEBUG ?= 1
+
 ifeq ($(DEBUG), 0)
-    CXXFLAGS += -O3  # Optimización para producción (modo sin depuración)
+    CXXFLAGS = -Wall -Wextra -std=c++17 -O3  # Optimización para producción
 else
-    CXXFLAGS += -g  # Símbolos de depuración
+    CXXFLAGS = -Wall -Wextra -std=c++17 -g  # Símbolos de depuración
 endif
 
-all: $(TARGET)
+# Objetivo por defecto
+all: debug
+
+# Modo debug
+debug: CXXFLAGS += -g
+debug: $(TARGET)
+
+# Modo release
+release: CXXFLAGS += -O3
+release: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CXX) $(CXXFLAGS) $(LIB_DIRS) -o $@ $^ $(LIBS)
@@ -31,4 +41,4 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 clean:
 	rm -rf $(BUILD_DIR) $(TARGET)
 
-.PHONY: all clean
+.PHONY: all debug release clean
