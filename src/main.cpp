@@ -1,14 +1,37 @@
+/*
+- Fix the laser colisions and point creation (Probably because the laser colisions)
+
+...
+
+- Calculate area where the robot is able to enter
+
+
+*/
+
+
+
+
+
+
+
+
+
+
 #include<raylib.h>
 #include<stdio.h>
 #include<math.h>
 #include<time.h>
 #include<cstdint>
+#include<thread>
 
 #include"array.h"
 
 
-#define N_LASER_PER_FRAME 10
+#define EPSILON 1e-6
+#define N_LASER_PER_FRAME 4
 #define POINT_THRESHOLD_DISTANCE 20.0
+#define LASER_VELOCITY 5
+
 
 // ====================================================================================================================================
 // TYPES
@@ -95,14 +118,12 @@ robotUpdate(Robot *robot){
 }
 
 void
-robotCollide(Robot *robot, const Wall *wall) {
-    bool collisionX = robot->position.x + robot->size.x > wall->position.x &&
-                      wall->position.x + wall->size.x > robot->position.x;
-
-    bool collisionY = robot->position.y + robot->size.y > wall->position.y &&
-                      wall->position.y + wall->size.y > robot->position.y;
-
-    if (collisionX && collisionY) {
+robotCollide(Robot *robot, const Wall *wall)
+{
+    Rectangle rect1 = {robot->position.x, robot->position.y, robot->size.x, robot->size.y};
+    Rectangle rect2 = {wall->position.x, wall->position.y, wall->size.x, wall->size.y};
+    if(CheckCollisionRecs(rect1, rect2))
+    {
         float penetrationX = fmin(
             (robot->position.x + robot->size.x) - wall->position.x,
             (wall->position.x + wall->size.x) - robot->position.x
@@ -114,21 +135,28 @@ robotCollide(Robot *robot, const Wall *wall) {
         );
 
         if (penetrationX < penetrationY) {
-            if (robot->position.x < wall->position.x) {
+            if (robot->position.x < wall->position.x)
+            {
                 robot->position.x = wall->position.x - robot->size.x;
-            } else {
+            }
+            else
+            {
                 robot->position.x = wall->position.x + wall->size.x;
             }
-        } else {
-            if (robot->position.y < wall->position.y) {
+        }
+        else
+        {
+            if (robot->position.y < wall->position.y)
+            {
                 robot->position.y = wall->position.y - robot->size.y;
-            } else {
+            }
+            else
+            {
                 robot->position.y = wall->position.y + wall->size.y;
             }
         }
     }
 }
-
 
 void
 laserUpdate(Laser *laser){
@@ -150,13 +178,16 @@ void
 radiansToVelocities(Vector2 velocities[], unsigned int divisions)
 {
     float radians_div = 2*M_PI/divisions;
-    float r = 10;
+
     for (unsigned int i = 0; i < divisions; i++) {
         float theta = radians_div * i;
+        velocities[i].x = cos(theta) * LASER_VELOCITY;
+        velocities[i].y = sin(theta) * LASER_VELOCITY;
 
-        velocities[i].x = cos(theta) * r;
-        velocities[i].y = sin(theta) * r;
+        if (fabs(velocities[i].x) < EPSILON) velocities[i].x = 0.0;
+        if (fabs(velocities[i].y) < EPSILON) velocities[i].y = 0.0;
     }
+
 }
 
 bool
@@ -166,8 +197,8 @@ pointExistsOrNear(const Array* pointarr, const LaserPoint* laserpoint)
 
     for(size_t i = 0; i < pointarr->size; i++)
     {
-        if (fabs(points[i].x - laserpoint->x) < 1e-6 &&
-            fabs(points[i].y - laserpoint->y) < 1e-6)
+        if (fabs(points[i].x - laserpoint->x) < EPSILON &&
+            fabs(points[i].y - laserpoint->y) < EPSILON)
         {
             return true;
         }
@@ -182,6 +213,7 @@ pointExistsOrNear(const Array* pointarr, const LaserPoint* laserpoint)
     return false;
 }
 
+
 bool
 laserCollide(Laser* laser, const Wall* wall, Array* pointarr)
 {
@@ -191,13 +223,12 @@ laserCollide(Laser* laser, const Wall* wall, Array* pointarr)
     float wall_end_x = wall->position.x + wall->size.x;
     float wall_end_y = wall->position.y + wall->size.y;
 
-    bool x_colision_right = laser_end_x < wall_end_x;
-    bool x_colision_left = laser_end_x > wall->position.x;
-    bool y_colision_down = laser_end_y < wall_end_y;
-    bool y_colision_up = laser_end_y > wall->position.y;
+    Rectangle rect2 = {wall->position.x, wall->position.y, wall->size.x, wall->size.y};
+
     float dy;
     float dx;
-    if(x_colision_right && x_colision_left && y_colision_down && y_colision_up)
+
+    if(CheckCollisionPointRec((Vector2){laser_end_x, laser_end_y}, rect2))
     {
         dx = laser_end_x - wall_end_x;
         dy = laser_end_y - wall_end_y;
@@ -212,9 +243,7 @@ laserCollide(Laser* laser, const Wall* wall, Array* pointarr)
             if(laser_end_y > wall_end_y-(wall->size.y/2)) direction = DOWN; else direction = UP;
         }
 
-
     }
-
     switch(direction)
     {
         case UP:
@@ -267,6 +296,24 @@ laserOutOfScreen(Array* laserarr)
 }
 
 
+
+// void
+// lanesBetweenPoints(Array* pointarr, Array* lanearr)
+// {
+//     LaserPoint* points = (LaserPoint *)pointarr.data;
+
+//     Vector2 p1 = points[0];
+//     Vector2 p2 = points[1];
+
+//     for (size_t i = 2; i < pointarr.size; i++)
+//     {
+//         float dx =
+//     }
+
+// }
+
+
+
 // ===================================================================================================================================
 // MAIN
 // ===================================================================================================================================
@@ -276,7 +323,7 @@ laserOutOfScreen(Array* laserarr)
 int
 main(){
     const int screenWidth = 1920;
-    const int screenHeight = 1080; // 1080 - i3 borders
+    const int screenHeight = 1080;
 
     bool paused = false;
 
@@ -285,12 +332,17 @@ main(){
     walls[1] = wallCreate((Vector2){1650, 100}, (Vector2){100, 800});
     walls[2] = wallCreate((Vector2){100, 100}, (Vector2){1650, 100});
     walls[3] = wallCreate((Vector2){100, 100}, (Vector2){100, 600});
+
     Robot robot = robotCreate((Vector2){100, 700}, (Vector2){100, 100}, (Vector2){10, 0});
+
     static Array laserarr;
     initArray(&laserarr, 10, sizeof(Laser));
 
     static Array pointarr;
     initArray(&pointarr, 10, sizeof(LaserPoint));
+
+    static Array lanearr;
+    initArray(&pointarr, 10, sizeof(Lane));
 
     InitWindow(screenWidth, screenHeight, "Slam simulation");
     SetTargetFPS(60);
@@ -313,6 +365,7 @@ main(){
                 for (size_t i = 0; i < N_LASER_PER_FRAME; i++)
                 {
                     Laser laser = laserCreate(&robot, velocities[i]);
+
                     addElement(&laserarr, &laser);
 
                 }
@@ -333,13 +386,15 @@ main(){
 
             if(!paused)
             {
+                std::thread worker(lanesBetweenPoints, &pointarr, &lanearr);
                 robotUpdate(&robot);
 
                 for(size_t i = 0; i < laserarr.size; i++)
                 {
                     laserUpdate(&lasers[i]);
-                    laserOutOfScreen(&laserarr);
                 }
+                laserOutOfScreen(&laserarr);
+                worker.join();
 
                 for (size_t i = 0; i < 4; i++)
                 {
@@ -361,24 +416,44 @@ main(){
             DrawText(fpstring, 10, 10, 20, RED);
 
             char n_points[40];
-            sprintf(n_points,"Number of points: %d", pointarr.size);
+            sprintf(n_points,"Number of points: %d", (int)pointarr.size);
             DrawText(n_points, 10, 40, 20, RED);
 
             for(int i = 0; i < 4; i++)
             {
                 DrawRectangle(walls[i].position.x, walls[i].position.y, walls[i].size.x, walls[i].size.y, DARKGRAY);
             }
+
             for(size_t i = 0; i < laserarr.size; i++)
             {
                 Vector2 endPosition = { lasers[i].position.x + lasers[i].velocity.x, lasers[i].position.y + lasers[i].velocity.y };
                 DrawLineEx(lasers[i].position, endPosition, 2.0f, RED);
+
+                // if(lasers[i].position.x>1651 || lasers[i].position.x<199)
+                // {
+                //     printf("1 x: %f y: %f vx: %f vy: %f \n", lasers[i].position.x, lasers[i].position.y, lasers[i].velocity.x, lasers[i].velocity.y);
+                //     printf("2 x: %f y: %f vx: %f vy: %f \n", lasers[i+1].position.x, lasers[i+1].position.y, lasers[i+1].velocity.x, lasers[i+1].velocity.y);
+                //     DrawText("wtf", 120, 210, 40, RED);
+
+                //     for(int j = 0; j < 4; j++)
+                //     {
+                //         Rectangle rect2 = {walls[j].position.x, walls[j].position.y, walls[j].size.x, walls[j].size.y};
+                //         float laser_end_x = lasers[i].position.x + lasers[i].velocity.x;
+                //         float laser_end_y = lasers[i].position.y + lasers[i].velocity.y;
+                //         if(CheckCollisionPointRec((Vector2){laser_end_x, laser_end_y}, rect2)){
+                //             DrawText("DINGDONG", 120, 210, 50, GREEN);
+                //         }
+                //     }
+                // }
+
             }
+
             for(size_t i = 0; i < pointarr.size; i++)
             {
                 DrawCircle(points[i].x, points[i].y, 2, RED);
             }
-            DrawRectangle(robot.position.x, robot.position.y, robot.size.x, robot.size.y, BLUE);
 
+            DrawRectangle(robot.position.x, robot.position.y, robot.size.x, robot.size.y, BLUE);
 
         EndDrawing();
     }

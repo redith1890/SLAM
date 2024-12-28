@@ -11,23 +11,20 @@ LIBS = -lraylib -lm
 INCLUDE_DIRS =
 LIB_DIRS =
 
-# Si no se define DEBUG, por defecto se activa el modo debug.
 DEBUG ?= 1
 
 ifeq ($(DEBUG), 0)
-    CXXFLAGS = -Wall -Wextra -std=c++17 -O3  # Optimización para producción
+    CXXFLAGS = -Wall -Wextra -std=c++17 -O3
 else
-    CXXFLAGS = -Wall -Wextra -std=c++17 -g  # Símbolos de depuración
+    CXXFLAGS = -Wall -Wextra -std=c++17 -g
 endif
 
-# Objetivo por defecto
+
 all: debug
 
-# Modo debug
 debug: CXXFLAGS += -g
 debug: $(TARGET)
 
-# Modo release
 release: CXXFLAGS += -O3
 release: $(TARGET)
 
