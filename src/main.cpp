@@ -23,8 +23,11 @@
 #include<time.h>
 #include<cstdint>
 #include<thread>
+#include<iostream>
 
 #include"array.h"
+
+using namespace std;
 
 
 #define EPSILON 1e-6
@@ -57,7 +60,12 @@ typedef struct
     Vector2 velocity;
 }Laser;
 
-typedef Vector2 LaserPoint;
+typedef struct LaserPoint
+{
+    Vector2 position;
+    LaserPoint* p1;
+    LaserPoint* p2;
+}LaserPoint;
 
 typedef enum : int8_t
 {
@@ -83,6 +91,7 @@ Laser laserCreate(const Robot *robot, Vector2 velocity);
 void radiansToVelocities(Vector2 velocities[], unsigned int divisions);
 bool pointExists(const Array* pointarr, const LaserPoint* laserpoint);
 bool laserCollide(Laser* laser, const Wall* wall, Array* pointarr);
+void lanesBetweenPoints(Array* pointarr, LaserPoint* point);
 
 
 // ===================================================================================================================================
@@ -197,14 +206,14 @@ pointExistsOrNear(const Array* pointarr, const LaserPoint* laserpoint)
 
     for(size_t i = 0; i < pointarr->size; i++)
     {
-        if (fabs(points[i].x - laserpoint->x) < EPSILON &&
-            fabs(points[i].y - laserpoint->y) < EPSILON)
+        if (fabs(points[i].position.x - laserpoint->position.x) < EPSILON &&
+            fabs(points[i].position.y - laserpoint->position.y) < EPSILON)
         {
             return true;
         }
 
-        double dx = points[i].x - laserpoint->x;
-        double dy = points[i].y - laserpoint->y;
+        double dx = points[i].position.x - laserpoint->position.x;
+        double dy = points[i].position.y - laserpoint->position.y;
         if (sqrt(dx * dx + dy * dy) < POINT_THRESHOLD_DISTANCE)
         {
             return true;
@@ -249,33 +258,53 @@ laserCollide(Laser* laser, const Wall* wall, Array* pointarr)
         case UP:
             {
                 LaserPoint point;
-                point.x = laser_end_x;
-                point.y = laser_end_y - wall->size.y - dy;
-                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
+                point.position.x = laser_end_x;
+                point.position.y = laser_end_y - wall->size.y - dy;
+                if(!pointExistsOrNear(pointarr, &point))
+                {
+                    addElement(pointarr, &point);
+                    lanesBetweenPoints(pointarr, &point);
+
+                }
             }
             return true;
         case DOWN:
             {
                 LaserPoint point;
-                point.x = laser_end_x;
-                point.y = laser_end_y - dy;
-                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
+                point.position.x = laser_end_x;
+                point.position.y = laser_end_y - dy;
+                if(!pointExistsOrNear(pointarr, &point))
+                {
+                    addElement(pointarr, &point);
+                    lanesBetweenPoints(pointarr, &point);
+
+                }
             }
             return true;
         case RIGHT:
             {
                 LaserPoint point;
-                point.x = laser_end_x - dx;
-                point.y = laser_end_y;
-                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
+                point.position.x = laser_end_x - dx;
+                point.position.y = laser_end_y;
+                if(!pointExistsOrNear(pointarr, &point))
+                {
+                    addElement(pointarr, &point);
+                    lanesBetweenPoints(pointarr, &point);
+
+                }
             }
             return true;
         case LEFT:
             {
                 LaserPoint point;
-                point.x = laser_end_x - wall->size.x - dx;
-                point.y = laser_end_y;
-                if(!pointExistsOrNear(pointarr, &point)) addElement(pointarr, &point);
+                point.position.x = laser_end_x - wall->size.x - dx;
+                point.position.y = laser_end_y;
+                if(!pointExistsOrNear(pointarr, &point))
+                {
+                    addElement(pointarr, &point);
+                    lanesBetweenPoints(pointarr, &point);
+
+                }
             }
             return true;
         default:
@@ -297,20 +326,64 @@ laserOutOfScreen(Array* laserarr)
 
 
 
-// void
-// lanesBetweenPoints(Array* pointarr, Array* lanearr)
-// {
-//     LaserPoint* points = (LaserPoint *)pointarr.data;
+void
+lanesBetweenPoints(Array* pointarr, LaserPoint* point)
+{
+    LaserPoint* points = (LaserPoint *)pointarr->data;
 
-//     Vector2 p1 = points[0];
-//     Vector2 p2 = points[1];
+    if(pointarr->size > 2)
+    {
+        LaserPoint* p1 = &points[0];
+        LaserPoint* p2 = &points[1];
 
-//     for (size_t i = 2; i < pointarr.size; i++)
-//     {
-//         float dx =
-//     }
+        float dx1 = point->position.x - p1->position.x;
+        float dy1 = point->position.y - p1->position.y;
+        float dx2 = point->position.x - p2->position.x;
+        float dy2 = point->position.y - p2->position.y;
+        float d1 = sqrt(dx1 * dx1 + dy1 * dy1);
+        float d2 = sqrt(dx2 * dx2 + dy2 * dy2);
 
-// }
+        if(d1 > d2)
+        {
+            LaserPoint* temp = p1;
+            p1 = p2;
+            p2 = temp;
+            float tempDist = d1;
+            d1 = d2;
+            d2 = tempDist;
+        }
+
+
+        for (size_t i = 2; i < pointarr->size; i++)
+        {
+            float dx = point->position.x - points[i].position.x;
+            float dy = point->position.y - points[i].position.y;
+            float d = sqrt(dx * dx + dy * dy);
+
+            if (d < d1)
+            {
+                // Actualizar p1 y reorganizar las distancias
+                p2 = p1;
+                d2 = d1;
+                p1 = &points[i];
+                d1 = d;
+            }
+            else if (d < d2)
+            {
+                // Actualizar p2
+                p2 = &points[i];
+                d2 = d;
+            }
+        }
+        point->p1 = p1;
+        point->p2 = p2;
+        cout << point->p1->position.x << "\n";
+
+    }
+
+
+
+}
 
 
 
@@ -340,9 +413,6 @@ main(){
 
     static Array pointarr;
     initArray(&pointarr, 10, sizeof(LaserPoint));
-
-    static Array lanearr;
-    initArray(&pointarr, 10, sizeof(Lane));
 
     InitWindow(screenWidth, screenHeight, "Slam simulation");
     SetTargetFPS(60);
@@ -386,7 +456,7 @@ main(){
 
             if(!paused)
             {
-                std::thread worker(lanesBetweenPoints, &pointarr, &lanearr);
+                // std::thread worker(lanesBetweenPoints, &pointarr, &lanearr);
                 robotUpdate(&robot);
 
                 for(size_t i = 0; i < laserarr.size; i++)
@@ -394,7 +464,7 @@ main(){
                     laserUpdate(&lasers[i]);
                 }
                 laserOutOfScreen(&laserarr);
-                worker.join();
+                // worker.join();
 
                 for (size_t i = 0; i < 4; i++)
                 {
@@ -428,29 +498,18 @@ main(){
             {
                 Vector2 endPosition = { lasers[i].position.x + lasers[i].velocity.x, lasers[i].position.y + lasers[i].velocity.y };
                 DrawLineEx(lasers[i].position, endPosition, 2.0f, RED);
-
-                // if(lasers[i].position.x>1651 || lasers[i].position.x<199)
-                // {
-                //     printf("1 x: %f y: %f vx: %f vy: %f \n", lasers[i].position.x, lasers[i].position.y, lasers[i].velocity.x, lasers[i].velocity.y);
-                //     printf("2 x: %f y: %f vx: %f vy: %f \n", lasers[i+1].position.x, lasers[i+1].position.y, lasers[i+1].velocity.x, lasers[i+1].velocity.y);
-                //     DrawText("wtf", 120, 210, 40, RED);
-
-                //     for(int j = 0; j < 4; j++)
-                //     {
-                //         Rectangle rect2 = {walls[j].position.x, walls[j].position.y, walls[j].size.x, walls[j].size.y};
-                //         float laser_end_x = lasers[i].position.x + lasers[i].velocity.x;
-                //         float laser_end_y = lasers[i].position.y + lasers[i].velocity.y;
-                //         if(CheckCollisionPointRec((Vector2){laser_end_x, laser_end_y}, rect2)){
-                //             DrawText("DINGDONG", 120, 210, 50, GREEN);
-                //         }
-                //     }
-                // }
-
             }
 
             for(size_t i = 0; i < pointarr.size; i++)
             {
-                DrawCircle(points[i].x, points[i].y, 2, RED);
+                DrawCircle(points[i].position.x, points[i].position.y, 2, RED);
+                if(pointarr.size>2)
+                {
+                    DrawLineEx(points[i].p1->position, points[i].position, 2.0f, GREEN);
+                    cout << "x: " << points[i].p1->position.x  << "y: " << points[i].p1->position.y << "\n";
+                    cout << "x: " << points[i].position.x  << "y: " << points[i].position.y << "\n";
+                }
+
             }
 
             DrawRectangle(robot.position.x, robot.position.y, robot.size.x, robot.size.y, BLUE);
